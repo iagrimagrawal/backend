@@ -1,0 +1,41 @@
+*.env
+.env
+.env.*
+.env.test
+.env.production
+# Prettier ignore file
+.prettierrc
+.prettierignore
+# Ignore all JS/TS files (uncomment if needed)
+*.js 
+*.ts
+# Ignore build directories
+.next
+out
+.nuxt
+dist
+.cache/
+.vuepress/dist
+.serverless/
+.fusebox/
+.dynamodb/
+# Ignore node modules
+/.vscode
+node_modules/
+web_modules/
+# Ignore TypeScript cache
+*.tsbuildinfo
+# Ignore npm cache directory
+.npm
+# Ignore eslint cache
+.eslintcache
+# Ignore Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+# Ignore optional REPL history
+.node_repl_history
+# Ignore output of 'npm pack'
+*.tgz
+
