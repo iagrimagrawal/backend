@@ -17,25 +17,27 @@ const registerUser = asyncHandler(async (req,res)=>{
     // check for user creation 
     // return response 
 
-    const {email,fullName,username,password} = req.body
+    const {email,fullName,username,password} = req.body;
     
     if(!fullName||!username||!email||!password){
         throw new ApiError(400,"All fields are required");
     }
 
-    console.log(req.body);
+    // console.log(req.body);
     
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or:[{email},{username}]
-    })
+    });
 
     if(existedUser){
         throw new ApiError(409,"User Already Existed");
     }
 
+    // console.log(req.files);
+    
     // get file paths from multer
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    const coverImageLocalPath = req.files?.coverImage?.length > 0 ? req.files?.coverImage[0]?.path :null;
 
     if(!avatarLocalPath){
         throw new ApiError(400,"Avatar file is required");
@@ -69,6 +71,8 @@ const registerUser = asyncHandler(async (req,res)=>{
         throw new ApiError(500,"Something went worng while register a user");
     }
 
+    console.log("User controller successfull");
+    
     return res.status(201).json(
         new ApiResponse(200,createdUser,"User register succesfully")
     )
