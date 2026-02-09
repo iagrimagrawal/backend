@@ -11,7 +11,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon --delay 5 src/index.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.11",
