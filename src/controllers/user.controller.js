@@ -20,7 +20,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 
         return {accessToken,refreshToken};
     }catch(error){
-        throw new ApiError(500,"Something went wrong while genrating Token");1
+        throw new ApiError(500,"Something went wrong while genrating Token");
     }
 }
 
@@ -198,14 +198,14 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
             secure:true
         }
     
-        const {accessToken,newrefreshToken} = await generateAccessAndRefreshToken(user._id)
+        const { accessToken,refreshToken } = await generateAccessAndRefreshToken(user._id);
     
         return res
         .status(200)
-        .cookie("accessToken",accessToken.options)
-        .cookie("refreshToken",newrefreshToken,options)
+        .cookie("accessToken",accessToken,options)
+        .cookie("refreshToken",refreshToken,options)
         .json(
-            new ApiResponse(200,{accessToken,newrefreshToken},"Access token refreshed")
+            new ApiResponse(200,{accessToken,refreshToken},"Access token refreshed")
         )
     } catch (error) {
         throw new ApiError(401,error?.message || "Invalid Refresh Token")
@@ -227,13 +227,11 @@ const changeCurrentPassword = asyncHandler(async(req,res)=>{
 
     return res.status(200)
     .json(new ApiResponse(200,{},"Password change Successfully"));
-
-
 })
 
 const getCurrentUser = asyncHandler(async(req,res)=>{
     return res.status(200)
-    .json(200,req.user,"Current User Fetch Successfully")
+    .json(new ApiResponse(200,req.user,"Current User Fetch Successfully"))
 })
 
 const updateAccountDetails = asyncHandler(async(req,res)=>{
@@ -246,7 +244,7 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
         throw new ApiError(400,"All field are required");
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id
         ,{
             $set:{
@@ -263,7 +261,7 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
 
 const updateAccountAvatar = asyncHandler(async(req,res)=>{
     
-    const avatarLocalPath = req.files?.path
+    const avatarLocalPath = req.file?.path
 
     if(!avatarLocalPath){
         throw new ApiError(400,"Avatar file is missing")
@@ -390,7 +388,7 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
             }
         },{
             $lookup:{
-                from:videos,
+                from:"videos",
                 localField:"watchHistory",
                 foreignField:"_id",
                 as:"watchHistory",
