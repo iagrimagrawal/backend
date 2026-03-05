@@ -4,7 +4,7 @@ import {User} from "../models/user.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
-import {uploadOnCloudinary} from "../utils/cloudinary.js"
+import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -61,7 +61,9 @@ const publishAVideo = asyncHandler(async (req, res) => {
         description,
         owner:req.user._id,
         videoFile:videoFile.url,
+        videoFilePublicId:videoFile.public_id,
         thumbnail:thumbnail.url,
+        thumbnailPublicId:thumbnail.public_id,
         duration:videoFile.duration || 0,
         views:0,
     });
@@ -83,7 +85,8 @@ const getVideoById = asyncHandler(async (req, res) => {
         {$inc:{views:1}},
         {new:true}
     )
-    .populate("owner","username fullName avatar");
+    .populate("owner","username fullName avatar")
+    .select("-__v");
 
     if(!video){
         throw new ApiError(404,"Video not found");
@@ -111,22 +114,35 @@ const updateVideo = asyncHandler(async (req, res) => {
     if(title){
         updateFields.title = title;
     }
+
     if(description){
         updateFields.description = description;
+    }
+
+    const video = await Video.findOne({_id:videoId,owner:req.user._id});
+
+    if(!video){
+        throw new ApiError(404,"Video not found or unauthorized");
     }
 
     if (req.file) {
         if (!req.file.mimetype.startsWith("image/")) {
             throw new ApiError(400, "Invalid thumbnail format");
         }    
-        const thumbnailLocalPath = req.file?.path
+        const thumbnailLocalPath = req.file?.path;
 
         const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
 
         if(!thumbnail.url){
             throw new ApiError(400,"Thumbnail upload fail");
         }
+
+        if(video.thumbnailPublicId){
+            await deleteFromCloudinary(video.thumbnailPublicId);
+        }
+
         updateFields.thumbnail = thumbnail.url;
+        updateFields.thumbnailPublicId = thumbnail.public_id;
     }
 
     if(Object.keys(updateFields).length === 0){
@@ -137,10 +153,7 @@ const updateVideo = asyncHandler(async (req, res) => {
         {_id:videoId,owner:req.user._id},
         {$set:updateFields},
         {new:true}
-    );
-    if (!updateVideo) {
-        throw new ApiError(404, "Video not found or unauthorized");
-    }
+    ).select("-__v");
 
     return res
     .status(200)
@@ -164,21 +177,18 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(404,"Video not found");
     }
 
-    // Delete media from Cloudinary (if public_id stored)
-    //   if (video.videoPublicId) {
-    //     await cloudinary.uploader.destroy(video.videoPublicId, {
-    //       resource_type: "video"
-    //     });
-    //   }
+    if(video.videoFilePublicId){
+        await deleteFromCloudinary(video.videoFilePublicId);
+    }
 
-    //   if (video.thumbnailPublicId) {
-    //     await cloudinary.uploader.destroy(video.thumbnailPublicId);
-    //   }
-
-    //   await User.updateMany(
-    //     { watchHistory: videoId },
-    //     { $pull: { watchHistory: videoId } }
-    //   );
+    if(video.thumbnailPublicId){
+        await deleteFromCloudinary(video.thumbnailPublicId);
+    }
+    
+    await User.updateMany(
+        {watchHistory: videoId},
+        {$pull:{watchHistory:videoId}}
+    );
 
     return res
     .status(200)
