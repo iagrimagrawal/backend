@@ -9,7 +9,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
     //TODO: get all comments for a video
     const {videoId} = req.params
     const {page = 1, limit = 10} = req.query;
-    
+
 })
 
 const addComment = asyncHandler(async (req, res) => {
@@ -27,7 +27,7 @@ const addComment = asyncHandler(async (req, res) => {
     }
 
     if(content.trim().length > 500){
-        throw new ApiError(400,"Comment should not execeed 500 words");
+        throw new ApiError(400,"Comment should not execeed 500 characters");
     }
 
     const video = await Video.findById(videoId);
@@ -72,15 +72,19 @@ const updateComment = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Comment should not execeed 500 words");
     }
 
-    const updateComment = await Comment.findOneAndUpdate(
+    const updatedComment = await Comment.findOneAndUpdate(
         {_id:commentId,owner:req.user._id},
-        {content},
+        {content:content.trim()},
         {new:true}
     ).select("-__v");
 
+    if(!updatedComment){
+        throw new ApiError(404,"Content not found or unauthorised");
+    }
+  
     return res
     .status(200)
-    .json(new ApiResponse(200,updateComment,"Comment updated Succesfully"));
+    .json(new ApiResponse(200,updatedComment,"Comment updated Succesfully"));
 
 })
 
