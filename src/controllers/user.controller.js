@@ -91,7 +91,7 @@ const registerUser = asyncHandler(async (req,res)=>{
     return res.status(201).json(
         new ApiResponse(200,createdUser,"User register succesfully")
     )
-})
+});
 
 const loginUser = asyncHandler(async (req,res)=>{
     // fetch email or username and password from req.body
@@ -131,7 +131,7 @@ const loginUser = asyncHandler(async (req,res)=>{
 
     const options = {
         httpOnly:true,
-        secure:true
+        secure:false, // set to true in production
     }
 
     return res.status(200)
@@ -169,7 +169,7 @@ const logoutUser = asyncHandler(async (req,res)=>{
     .clearCookie("accessToken",options)
     .clearCookie("refreshToken",options)
     .json(new ApiResponse(200,{},"User logout Successfull"))
-})
+});
 
 const refreshAccessToken = asyncHandler(async(req,res)=>{
     const incomingRefreshToken =  req.cookies.refreshToken || req.body.refreshToken
@@ -210,7 +210,7 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
     } catch (error) {
         throw new ApiError(401,error?.message || "Invalid Refresh Token")
     }
-})
+});
 
 const changeCurrentPassword = asyncHandler(async(req,res)=>{
     const {oldPassword,newPassword} = req.body;
@@ -227,12 +227,12 @@ const changeCurrentPassword = asyncHandler(async(req,res)=>{
 
     return res.status(200)
     .json(new ApiResponse(200,{},"Password change Successfully"));
-})
+});
 
 const getCurrentUser = asyncHandler(async(req,res)=>{
     return res.status(200)
     .json(new ApiResponse(200,req.user,"Current User Fetch Successfully"))
-})
+});
 
 const updateAccountDetails = asyncHandler(async(req,res)=>{
     // find user by id
@@ -257,7 +257,7 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
     return res
     .status(200)
     .json(new ApiResponse(200,user,"Account update Successfully"))
-})
+});
 
 const updateAccountAvatar = asyncHandler(async(req,res)=>{
     
@@ -287,7 +287,7 @@ const updateAccountAvatar = asyncHandler(async(req,res)=>{
     return res.status(200)
     .json(new ApiResponse(200,user,"Avatar update Succesfully"))
 
-})
+});
 
 const updateAccountCoverImage = asyncHandler(async(req,res)=>{
     const coverImageLocalPath = req.file?.path
@@ -310,7 +310,7 @@ const updateAccountCoverImage = asyncHandler(async(req,res)=>{
    return res.status(200).
    json(new ApiResponse(200,user,"Cover Image updated Successfully"));
 
-})
+});
 
 const getUserChannelProfile = asyncHandler(async(req,res)=>{
     const {username} = req.params;
@@ -378,7 +378,7 @@ const getUserChannelProfile = asyncHandler(async(req,res)=>{
         .json(
             new ApiResponse(200,channel[0],"User channel fetched successfully")
         )
-})
+});
 
 const getWatchHistory = asyncHandler(async(req,res)=>{
     const user = await User.aggregate([
@@ -415,8 +415,21 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
                                 $first:"$owner"
                             }
                         }
+                    },{
+                        $project:{
+                            title:1,
+                            thumbnail:1,
+                            owner:1,
+                        }
                     }
                 ]
+            }
+        },{
+            $project:{
+                fullName:1,
+                username:1,
+                avatar:1,
+                watchHistory:1
             }
         }
     ])
@@ -424,9 +437,9 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
     return res
     .status(200)
     .json(
-        new ApiResponse(200,user[0].watchHistory,"User watch history fetched successfully")
+        new ApiResponse(200,user[0],"User watch history fetched successfully")
     )
-})
+});
 
 export {
     registerUser,

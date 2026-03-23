@@ -51,7 +51,7 @@ const addComment = asyncHandler(async (req, res) => {
     res
     .status(201)
     .json(new ApiResponse(201, comment, "Comment added successfully"));
-
+    
 })
 
 const updateComment = asyncHandler(async (req, res) => {
@@ -112,8 +112,8 @@ const deleteComment = asyncHandler(async (req, res) => {
 })
 
 export {
-    getVideoComments, 
-    addComment, 
+    getVideoComments,
+    addComment,
     updateComment,
     deleteComment
 }
