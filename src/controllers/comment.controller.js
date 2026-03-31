@@ -4,6 +4,7 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { Video } from "../models/video.model.js"
+import { CommentLike } from "../models/CommentLike.model.js"
 
 const getVideoComments = asyncHandler(async (req, res) => {
     //TODO: get all comments for a video
@@ -105,6 +106,10 @@ const deleteComment = asyncHandler(async (req, res) => {
     if(!comment){
         throw new ApiError(404,"Comment not found or unauthorized");
     }
+
+    await CommentLike.deleteMany({
+        comment:commentId,
+    })
 
     return res
     .status(200)

@@ -5,6 +5,8 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
+import { VideoLike } from "../models/videoLike.model.js"
+import { CommentLike } from "../models/CommentLike.model.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -189,6 +191,10 @@ const deleteVideo = asyncHandler(async (req, res) => {
         {watchHistory: videoId},
         {$pull:{watchHistory:videoId}}
     );
+
+    await VideoLike.deleteMany({
+        _id:videoId,
+    });
 
     return res
     .status(200)
