@@ -4,6 +4,7 @@ import {User} from "../models/user.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
+import { TweetLike } from "../models/TweetLike.model.js"
 
 const getUserTweets = asyncHandler(async (req, res) => {
     // TODO: get user tweets
@@ -80,6 +81,11 @@ const deleteTweet = asyncHandler(async (req, res) => {
     if(!tweet){
         throw new ApiError(404,"Tweet not found or unauthorized");
     }
+
+    // delete all the likes of tweet
+    await TweetLike.deleteMany({
+        tweet:tweetId,
+    })
 
     return res
     .status(200)
