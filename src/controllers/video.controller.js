@@ -5,8 +5,10 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
+import { Comment } from "../models/comment.model.js"
 import { VideoLike } from "../models/videoLike.model.js"
 import { CommentLike } from "../models/CommentLike.model.js"
+import { Playlist } from "../models/playlist.model.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -170,7 +172,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid video id");
     }
 
-    const video = await Video.findByIdAndDelete({
+    const video = await Video.findOne({
         _id:videoId,
         owner:req.user._id
     });
@@ -179,22 +181,35 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(404,"Video not found");
     }
 
-    if(video.videoFilePublicId){
-        await deleteFromCloudinary(video.videoFilePublicId);
-    }
+    const commentIds = await Comment.find({ video: videoId }).distinct("_id");
 
-    if(video.thumbnailPublicId){
-        await deleteFromCloudinary(video.thumbnailPublicId);
-    }
-    
-    await User.updateMany(
+    await Promise.all([
+        video.deleteOne(),
+
+        User.updateMany(
         {watchHistory: videoId},
         {$pull:{watchHistory:videoId}}
-    );
+        ),
 
-    await VideoLike.deleteMany({
-        _id:videoId,
-    });
+        Playlist.updateMany(
+            {videos:videoId},
+            {$pull:{videos:videoId}}
+        ),
+
+        VideoLike.deleteMany({ video: videoId }),
+
+        CommentLike.deleteMany({
+            comment: { $in: commentIds }
+        }),
+
+        Comment.deleteMany({ video: videoId })
+
+    ]);
+
+    await Promise.all([
+        video.videoFilePublicId && deleteFromCloudinary(video.videoFilePublicId),
+        video.thumbnailPublicId && deleteFromCloudinary(video.thumbnailPublicId)
+    ]);
 
     return res
     .status(200)

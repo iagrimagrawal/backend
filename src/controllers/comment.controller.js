@@ -98,7 +98,7 @@ const deleteComment = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid Comment Id");
     }
 
-    const comment = await Comment.findOneAndDelete({
+    const comment = await Comment.findOne({
         _id:commentId,
         owner:req.user._id
     });
@@ -107,9 +107,13 @@ const deleteComment = asyncHandler(async (req, res) => {
         throw new ApiError(404,"Comment not found or unauthorized");
     }
 
-    await CommentLike.deleteMany({
-        comment:commentId,
-    })
+    await Promise.all([
+        comment.deleteOne(),
+
+        CommentLike.deleteMany({
+            comment:commentId,
+        })
+    ])
 
     return res
     .status(200)
