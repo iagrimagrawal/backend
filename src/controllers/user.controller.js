@@ -1,6 +1,14 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js"
+import { Video } from "../models/video.model.js";
+import { Comment } from "../models/comment.model.js";
+import { Subscription } from "../models/subscription.model.js";
+import { Playlist } from "../models/playlist.model.js";
+import { Tweet } from "../models/tweet.model.js";
+import { VideoLike } from "../models/videoLike.model.js";
+import { CommentLike } from "../models/CommentLike.model.js";
+import { TweetLike } from "../models/TweetLike.model.js";
 import { uploadOnCloudinary , deleteFromCloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
@@ -21,6 +29,34 @@ const generateAccessAndRefreshToken = async (userId) => {
         return {accessToken,refreshToken};
     }catch(error){
         throw new ApiError(500,"Something went wrong while genrating Token");
+    }
+}
+
+const getCloudinaryPublicIdFromUrl = (url) => {
+    if(!url) return null;
+
+    try {
+        const pathParts = new URL(url).pathname.split("/").filter(Boolean);
+        const uploadIndex = pathParts.indexOf("upload");
+
+        if(uploadIndex === -1) return null;
+
+        const publicIdParts = pathParts.slice(uploadIndex + 1);
+
+        if(publicIdParts[0]?.match(/^v\d+$/)){
+            publicIdParts.shift();
+        }
+
+        const fileName = publicIdParts.pop();
+        const publicId = fileName?.split(".").slice(0,-1).join(".");
+
+        if(publicId){
+            publicIdParts.push(publicId);
+        }
+
+        return publicIdParts.join("/");
+    } catch (error) {
+        return url.split("/")?.slice(-1)?.[0]?.split(".")?.[0] || null;
     }
 }
 
@@ -439,6 +475,130 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
     )
 });
 
+const deleteUserAccount = asyncHandler(async(req,res)=>{
+    const userId = req.user?._id;
+
+    const user = await User.findById(userId);
+
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+
+    const videos = await Video.find({owner:userId})
+    .select("_id videoFilePublicId thumbnailPublicId")
+    .lean();
+
+    const videoIds = videos.map((video)=>video._id);
+
+    const [commentIds,tweetIds,subscribers,subscribedChannels] = await Promise.all([
+        Comment.find({
+            $or:[
+                {owner:userId},
+                {video:{$in:videoIds}}
+            ]
+        }).distinct("_id"),
+
+        Tweet.find({owner:userId}).distinct("_id"),
+
+        Subscription.find({channel:userId})
+        .select("subscriber")
+        .lean(),
+
+        Subscription.find({subscriber:userId})
+        .select("channel")
+        .lean()
+    ]);
+
+    const subscriberIds = subscribers.map((subscription)=>subscription.subscriber);
+    const subscribedChannelIds = subscribedChannels.map((subscription)=>subscription.channel);
+
+    await Promise.all([
+        VideoLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {video:{$in:videoIds}}
+            ]
+        }),
+
+        CommentLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {comment:{$in:commentIds}}
+            ]
+        }),
+
+        TweetLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {tweet:{$in:tweetIds}}
+            ]
+        }),
+
+        Comment.deleteMany({
+            $or:[
+                {owner:userId},
+                {video:{$in:videoIds}}
+            ]
+        }),
+
+        Tweet.deleteMany({owner:userId}),
+
+        Playlist.deleteMany({owner:userId}),
+
+        Playlist.updateMany(
+            {videos:{$in:videoIds}},
+            {$pull:{videos:{$in:videoIds}}}
+        ),
+
+        User.updateMany(
+            {watchHistory:{$in:videoIds}},
+            {$pull:{watchHistory:{$in:videoIds}}}
+        ),
+
+        User.updateMany(
+            {_id:{$in:subscribedChannelIds}},
+            {$inc:{subscriberCount:-1}}
+        ),
+
+        User.updateMany(
+            {_id:{$in:subscriberIds}},
+            {$inc:{subscribedToCount:-1}}
+        ),
+
+        Subscription.deleteMany({
+            $or:[
+                {subscriber:userId},
+                {channel:userId}
+            ]
+        }),
+
+        Video.deleteMany({owner:userId}),
+
+        User.findByIdAndDelete(userId)
+    ]);
+
+    await Promise.all([
+        ...videos.flatMap((video)=>[
+            video.videoFilePublicId && deleteFromCloudinary(video.videoFilePublicId),
+            video.thumbnailPublicId && deleteFromCloudinary(video.thumbnailPublicId)
+        ]),
+        deleteFromCloudinary(getCloudinaryPublicIdFromUrl(user.avatar)),
+        deleteFromCloudinary(getCloudinaryPublicIdFromUrl(user.coverImage))
+    ]);
+
+    const options = {
+        httpOnly:true,
+        secure:true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken",options)
+    .clearCookie("refreshToken",options)
+    .json(new ApiResponse(200,null,"User account deleted successfully"));
+
+});
+
 export {
     registerUser,
     loginUser,
@@ -450,5 +610,6 @@ export {
     updateAccountAvatar,
     updateAccountCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    deleteUserAccount
 }
