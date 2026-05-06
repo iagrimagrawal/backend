@@ -1,7 +1,15 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Video } from "../models/video.model.js";
+import { Comment } from "../models/comment.model.js";
+import { Subscription } from "../models/subscription.model.js";
+import { Playlist } from "../models/playlist.model.js";
+import { Tweet } from "../models/tweet.model.js";
+import { VideoLike } from "../models/videoLike.model.js";
+import { CommentLike } from "../models/CommentLike.model.js";
+import { TweetLike } from "../models/TweetLike.model.js";
+import { uploadOnCloudinary , deleteFromCloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -24,17 +32,35 @@ const generateAccessAndRefreshToken = async (userId) => {
     }
 }
 
-const registerUser = asyncHandler(async (req,res)=>{
+const getCloudinaryPublicIdFromUrl = (url) => {
+    if(!url) return null;
 
-    // get user detail from frontend
-    // validation - not empty
-    // check if user already exist:username, email
-    // check for images,check for avatar
-    // upload them to cloudinary , avatar
-    // create user object - create entry in db
-    // remove password and refresh token field from response
-    // check for user creation 
-    // return response 
+    try {
+        const pathParts = new URL(url).pathname.split("/").filter(Boolean);
+        const uploadIndex = pathParts.indexOf("upload");
+
+        if(uploadIndex === -1) return null;
+
+        const publicIdParts = pathParts.slice(uploadIndex + 1);
+
+        if(publicIdParts[0]?.match(/^v\d+$/)){
+            publicIdParts.shift();
+        }
+
+        const fileName = publicIdParts.pop();
+        const publicId = fileName?.split(".").slice(0,-1).join(".");
+
+        if(publicId){
+            publicIdParts.push(publicId);
+        }
+
+        return publicIdParts.join("/");
+    } catch (error) {
+        return url.split("/")?.slice(-1)?.[0]?.split(".")?.[0] || null;
+    }
+}
+
+const registerUser = asyncHandler(async (req,res)=>{
 
     const {email,fullName,username,password} = req.body;
     
@@ -86,10 +112,24 @@ const registerUser = asyncHandler(async (req,res)=>{
         throw new ApiError(500,"Something went worng while register a user");
     }
 
+    const {accessToken,refreshToken} = await generateAccessAndRefreshToken(user._id);
+
+    const options = {
+        httpOnly:true,
+        secure:false,
+    }
+
     console.log("User controller successfull");
     
-    return res.status(201).json(
-        new ApiResponse(200,createdUser,"User register succesfully")
+    return res.status(201)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(200,{
+            loginUser:createdUser,
+            accessToken,
+            refreshToken,
+        },"User register succesfully")
     )
 });
 
@@ -260,12 +300,20 @@ const updateAccountDetails = asyncHandler(async(req,res)=>{
 });
 
 const updateAccountAvatar = asyncHandler(async(req,res)=>{
-    
     const avatarLocalPath = req.file?.path
 
     if(!avatarLocalPath){
         throw new ApiError(400,"Avatar file is missing")
     }
+    // check this full logic again of delete from cloudnary
+
+    const olduser = await User.findById(req.user?._id);
+    const oldAvatarPublicId = olduser.avatar?.split("/")?.slice(-1)?.[0]?.split(".")?.[0];
+
+    console.log(oldAvatarPublicId);
+    
+
+    await deleteFromCloudinary(oldAvatarPublicId);
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);
 
@@ -296,7 +344,7 @@ const updateAccountCoverImage = asyncHandler(async(req,res)=>{
         throw new ApiError(400,"Cover Image is missing")
     }
 
-   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
     const user = await User.findByIdAndUpdate(
     req.user?._id,{
@@ -441,6 +489,130 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
     )
 });
 
+const deleteUserAccount = asyncHandler(async(req,res)=>{
+    const userId = req.user?._id;
+
+    const user = await User.findById(userId);
+
+    if(!user){
+        throw new ApiError(404,"User not found");
+    }
+
+    const videos = await Video.find({owner:userId})
+    .select("_id videoFilePublicId thumbnailPublicId")
+    .lean();
+
+    const videoIds = videos.map((video)=>video._id);
+
+    const [commentIds,tweetIds,subscribers,subscribedChannels] = await Promise.all([
+        Comment.find({
+            $or:[
+                {owner:userId},
+                {video:{$in:videoIds}}
+            ]
+        }).distinct("_id"),
+
+        Tweet.find({owner:userId}).distinct("_id"),
+
+        Subscription.find({channel:userId})
+        .select("subscriber")
+        .lean(),
+
+        Subscription.find({subscriber:userId})
+        .select("channel")
+        .lean()
+    ]);
+
+    const subscriberIds = subscribers.map((subscription)=>subscription.subscriber);
+    const subscribedChannelIds = subscribedChannels.map((subscription)=>subscription.channel);
+
+    await Promise.all([
+        VideoLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {video:{$in:videoIds}}
+            ]
+        }),
+
+        CommentLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {comment:{$in:commentIds}}
+            ]
+        }),
+
+        TweetLike.deleteMany({
+            $or:[
+                {likedBy:userId},
+                {tweet:{$in:tweetIds}}
+            ]
+        }),
+
+        Comment.deleteMany({
+            $or:[
+                {owner:userId},
+                {video:{$in:videoIds}}
+            ]
+        }),
+
+        Tweet.deleteMany({owner:userId}),
+
+        Playlist.deleteMany({owner:userId}),
+
+        Playlist.updateMany(
+            {videos:{$in:videoIds}},
+            {$pull:{videos:{$in:videoIds}}}
+        ),
+
+        User.updateMany(
+            {watchHistory:{$in:videoIds}},
+            {$pull:{watchHistory:{$in:videoIds}}}
+        ),
+
+        User.updateMany(
+            {_id:{$in:subscribedChannelIds}},
+            {$inc:{subscriberCount:-1}}
+        ),
+
+        User.updateMany(
+            {_id:{$in:subscriberIds}},
+            {$inc:{subscribedToCount:-1}}
+        ),
+
+        Subscription.deleteMany({
+            $or:[
+                {subscriber:userId},
+                {channel:userId}
+            ]
+        }),
+
+        Video.deleteMany({owner:userId}),
+
+        User.findByIdAndDelete(userId)
+    ]);
+
+    await Promise.all([
+        ...videos.flatMap((video)=>[
+            video.videoFilePublicId && deleteFromCloudinary(video.videoFilePublicId),
+            video.thumbnailPublicId && deleteFromCloudinary(video.thumbnailPublicId)
+        ]),
+        deleteFromCloudinary(getCloudinaryPublicIdFromUrl(user.avatar)),
+        deleteFromCloudinary(getCloudinaryPublicIdFromUrl(user.coverImage))
+    ]);
+
+    const options = {
+        httpOnly:true,
+        secure:true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken",options)
+    .clearCookie("refreshToken",options)
+    .json(new ApiResponse(200,null,"User account deleted successfully"));
+
+});
+
 export {
     registerUser,
     loginUser,
@@ -452,5 +624,6 @@ export {
     updateAccountAvatar,
     updateAccountCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    deleteUserAccount
 }

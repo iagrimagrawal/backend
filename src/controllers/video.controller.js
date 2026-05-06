@@ -5,13 +5,51 @@ import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {deleteFromCloudinary, uploadOnCloudinary} from "../utils/cloudinary.js"
+import { Comment } from "../models/comment.model.js"
 import { VideoLike } from "../models/videoLike.model.js"
 import { CommentLike } from "../models/CommentLike.model.js"
+import { Playlist } from "../models/playlist.model.js"
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
     //TODO: get all videos based on query, sort, pagination
+    const pageNumber = Math.max(Number.parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
+
+    const filter = {
+        isPublished: true
+    };
+
+    if(query?.trim()){
+        filter.$or = [
+            { title: { $regex: query.trim(), $options: "i" } },
+            { description: { $regex: query.trim(), $options: "i" } }
+        ];
+    }
+
+    if(userId){
+        if(!mongoose.Types.ObjectId.isValid(userId)){
+            throw new ApiError(400, "Invalid user id");
+        }
+
+        filter.owner = userId;
+    }
+
+    const allowedSortFields = ["createdAt", "updatedAt", "views", "duration", "title"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortType === "asc" ? 1 : -1;
+
+    const videos = await Video.find(filter)
+        .sort({ [sortField]: sortDirection })
+        .skip((pageNumber - 1) * pageSize)
+        .limit(pageSize)
+        .populate("owner", "username fullName avatar")
+        .select("-__v");
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
 })
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -51,11 +89,11 @@ const publishAVideo = asyncHandler(async (req, res) => {
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
 
     if(!videoFile?.url){
-        throw new ApiError(400,"videoFile is required");
+        throw new ApiError(400,"Video upload failed. Check Cloudinary credentials and try again.");
     }
 
     if(!thumbnail?.url){
-        throw new ApiError(400,"thumbnail is required")
+        throw new ApiError(400,"Thumbnail upload failed. Check Cloudinary credentials and try again.")
     }
 
     const video = await Video.create({
@@ -170,7 +208,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid video id");
     }
 
-    const video = await Video.findByIdAndDelete({
+    const video = await Video.findOne({
         _id:videoId,
         owner:req.user._id
     });
@@ -179,22 +217,35 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(404,"Video not found");
     }
 
-    if(video.videoFilePublicId){
-        await deleteFromCloudinary(video.videoFilePublicId);
-    }
+    const commentIds = await Comment.find({ video: videoId }).distinct("_id");
 
-    if(video.thumbnailPublicId){
-        await deleteFromCloudinary(video.thumbnailPublicId);
-    }
-    
-    await User.updateMany(
+    await Promise.all([
+        video.deleteOne(),
+
+        User.updateMany(
         {watchHistory: videoId},
         {$pull:{watchHistory:videoId}}
-    );
+        ),
 
-    await VideoLike.deleteMany({
-        _id:videoId,
-    });
+        Playlist.updateMany(
+            {videos:videoId},
+            {$pull:{videos:videoId}}
+        ),
+
+        VideoLike.deleteMany({ video: videoId }),
+
+        CommentLike.deleteMany({
+            comment: { $in: commentIds }
+        }),
+
+        Comment.deleteMany({ video: videoId })
+
+    ]);
+
+    await Promise.all([
+        video.videoFilePublicId && deleteFromCloudinary(video.videoFilePublicId),
+        video.thumbnailPublicId && deleteFromCloudinary(video.thumbnailPublicId)
+    ]);
 
     return res
     .status(200)
