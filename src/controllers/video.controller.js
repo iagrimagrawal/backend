@@ -14,6 +14,42 @@ import { Playlist } from "../models/playlist.model.js"
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
     //TODO: get all videos based on query, sort, pagination
+    const pageNumber = Math.max(Number.parseInt(page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
+
+    const filter = {
+        isPublished: true
+    };
+
+    if(query?.trim()){
+        filter.$or = [
+            { title: { $regex: query.trim(), $options: "i" } },
+            { description: { $regex: query.trim(), $options: "i" } }
+        ];
+    }
+
+    if(userId){
+        if(!mongoose.Types.ObjectId.isValid(userId)){
+            throw new ApiError(400, "Invalid user id");
+        }
+
+        filter.owner = userId;
+    }
+
+    const allowedSortFields = ["createdAt", "updatedAt", "views", "duration", "title"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const sortDirection = sortType === "asc" ? 1 : -1;
+
+    const videos = await Video.find(filter)
+        .sort({ [sortField]: sortDirection })
+        .skip((pageNumber - 1) * pageSize)
+        .limit(pageSize)
+        .populate("owner", "username fullName avatar")
+        .select("-__v");
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
 })
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -53,11 +89,11 @@ const publishAVideo = asyncHandler(async (req, res) => {
     const thumbnail = await uploadOnCloudinary(thumbnailLocalPath);
 
     if(!videoFile?.url){
-        throw new ApiError(400,"videoFile is required");
+        throw new ApiError(400,"Video upload failed. Check Cloudinary credentials and try again.");
     }
 
     if(!thumbnail?.url){
-        throw new ApiError(400,"thumbnail is required")
+        throw new ApiError(400,"Thumbnail upload failed. Check Cloudinary credentials and try again.")
     }
 
     const video = await Video.create({

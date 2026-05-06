@@ -112,10 +112,24 @@ const registerUser = asyncHandler(async (req,res)=>{
         throw new ApiError(500,"Something went worng while register a user");
     }
 
+    const {accessToken,refreshToken} = await generateAccessAndRefreshToken(user._id);
+
+    const options = {
+        httpOnly:true,
+        secure:false,
+    }
+
     console.log("User controller successfull");
     
-    return res.status(201).json(
-        new ApiResponse(200,createdUser,"User register succesfully")
+    return res.status(201)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(200,{
+            loginUser:createdUser,
+            accessToken,
+            refreshToken,
+        },"User register succesfully")
     )
 });
 

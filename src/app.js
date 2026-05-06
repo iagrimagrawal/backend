@@ -31,6 +31,7 @@ import subscriptionRouter from './routes/subscription.route.js'
 // routes declaration
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/video",videoRouter);
+app.use("/api/v1/videos",videoRouter);
 app.use("/api/v1/comments",commentRouter);
 app.use("/api/v1/tweet",tweetRouter);
 app.use("/api/v1/playlist",playlistRouter);

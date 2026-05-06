@@ -1,6 +1,12 @@
 import {v2 as cloudinary} from 'cloudinary';
 import fs from "fs"
 
+const removeLocalFile = (localFilePath) => {
+    if(localFilePath && fs.existsSync(localFilePath)){
+        fs.unlinkSync(localFilePath);
+    }
+}
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -16,10 +22,10 @@ const uploadOnCloudinary = async(localFilePath) =>{
         })
 
         // remove the file from local storage
-        fs.unlinkSync(localFilePath);
+        removeLocalFile(localFilePath);
         return response;
     }catch(error){
-        fs.unlinkSync(localFilePath);
+        removeLocalFile(localFilePath);
         return null;
     }
 }
