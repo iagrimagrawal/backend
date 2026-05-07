@@ -1,4 +1,4 @@
-import mongoose, {isValidObjectId, Mongoose} from "mongoose"
+import mongoose from "mongoose"
 import {User} from "../models/user.model.js"
 import { Subscription } from "../models/subscription.model.js"
 import {ApiError} from "../utils/ApiError.js"
@@ -9,7 +9,7 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 const toggleSubscription = asyncHandler(async (req, res) => {
     const { channelId } = req.params;
 
-    if (!Mongoose.Types.ObjectId.isValid(channelId)) {
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
         throw new ApiError(400, "Invalid channel ID");
     }
 
@@ -79,7 +79,7 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     const { channelId } = req.params;
 
-    if (!Mongoose.Types.ObjectId.isValid(channelId)) {
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
         throw new ApiError(400, "Invalid channel ID");
     }
 
@@ -120,7 +120,7 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params;
 
-    if (!Mongoose.Types.ObjectId.isValid(subscriberId)) {
+    if (!mongoose.Types.ObjectId.isValid(subscriberId)) {
         throw new ApiError(400, "Invalid subscriber ID");
     }
 
