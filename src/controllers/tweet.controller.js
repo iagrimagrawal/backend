@@ -6,8 +6,64 @@ import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { TweetLike } from "../models/TweetLike.model.js"
 
+const getAllTweets = asyncHandler(async (req, res) => {
+    const tweets = await Tweet.find({})
+        .populate("owner", "username fullName avatar")
+        .sort({ createdAt: -1 })
+        .select("-__v");
+
+    const tweetsWithStats = await Promise.all(
+        tweets.map(async (tweet) => {
+            const [likeCount, isLiked] = await Promise.all([
+                TweetLike.countDocuments({ tweet: tweet._id }),
+                TweetLike.exists({ tweet: tweet._id, likedBy: req.user._id }),
+            ]);
+
+            return {
+                ...tweet.toObject(),
+                likeCount,
+                isLiked: Boolean(isLiked),
+                isDisliked: false,
+            };
+        })
+    );
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,tweetsWithStats,"Tweets fetched successfully"));
+})
+
 const getUserTweets = asyncHandler(async (req, res) => {
-    // TODO: get user tweets
+    const {userId} = req.params;
+
+    if(!isValidObjectId(userId)){
+        throw new ApiError(400,"Invalid user ID");
+    }
+
+    const tweets = await Tweet.find({owner:userId})
+        .populate("owner", "username fullName avatar")
+        .sort({ createdAt: -1 })
+        .select("-__v");
+
+    const tweetsWithStats = await Promise.all(
+        tweets.map(async (tweet) => {
+            const [likeCount, isLiked] = await Promise.all([
+                TweetLike.countDocuments({ tweet: tweet._id }),
+                TweetLike.exists({ tweet: tweet._id, likedBy: req.user._id }),
+            ]);
+
+            return {
+                ...tweet.toObject(),
+                likeCount,
+                isLiked: Boolean(isLiked),
+                isDisliked: false,
+            };
+        })
+    );
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,tweetsWithStats,"User tweets fetched successfully"));
 })
 
 const createTweet = asyncHandler(async (req, res) => {
@@ -94,6 +150,7 @@ const deleteTweet = asyncHandler(async (req, res) => {
 
 export {
     createTweet,
+    getAllTweets,
     getUserTweets,
     updateTweet,
     deleteTweet

@@ -119,9 +119,11 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
             likedBy:req.user._id
         })
 
+        const likeCount = await TweetLike.countDocuments({ tweet: tweetId });
+
         return res
         .status(200)
-        .json(new ApiResponse(200,{isLiked:true},"Tweet Liked"))
+        .json(new ApiResponse(200,{isLiked:true, likeCount},"Tweet Liked"))
     }catch(error){
         // dislike
         if(error.code === 11000){
@@ -130,9 +132,11 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
                 likedBy:req.user._id
             });
 
+            const likeCount = await TweetLike.countDocuments({ tweet: tweetId });
+
             return res
             .status(200)
-            .json(new ApiResponse(200,{isLiked:false},"Tweet Unliked"));
+            .json(new ApiResponse(200,{isLiked:false, likeCount},"Tweet Unliked"));
         }
 
         throw error;
