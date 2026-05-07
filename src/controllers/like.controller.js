@@ -30,9 +30,11 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
             likedBy:req.user._id,
         })
 
+        const likeCount = await VideoLike.countDocuments({ video: videoId });
+
         return res
         .status(200)
-        .json(new ApiResponse(200,{isLiked:true},"Video Liked"));
+        .json(new ApiResponse(200,{isLiked:true, likeCount},"Video Liked"));
     }catch(error){
         // Dislike
 
@@ -42,9 +44,11 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
                 likedBy:req.user._id,
             })
 
+        const likeCount = await VideoLike.countDocuments({ video: videoId });
+
         return res
         .status(200)
-        .json(new ApiResponse(200,{isLiked:false},"Video unliked"));
+        .json(new ApiResponse(200,{isLiked:false, likeCount},"Video unliked"));
         }
 
         throw error;

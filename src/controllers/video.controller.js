@@ -9,6 +9,26 @@ import { Comment } from "../models/comment.model.js"
 import { VideoLike } from "../models/videoLike.model.js"
 import { CommentLike } from "../models/CommentLike.model.js"
 import { Playlist } from "../models/playlist.model.js"
+import { Subscription } from "../models/subscription.model.js"
+
+const getVideoInteractionStats = async (video, userId) => {
+    const ownerId = video.owner?._id || video.owner;
+
+    const [likeCount, isLiked, isSubscribed] = await Promise.all([
+        VideoLike.countDocuments({ video: video._id }),
+        userId ? VideoLike.exists({ video: video._id, likedBy: userId }) : null,
+        userId && ownerId ? Subscription.exists({ channel: ownerId, subscriber: userId }) : null
+    ]);
+
+    return {
+        views: video.views || 0,
+        likeCount,
+        isLiked: Boolean(isLiked),
+        subscriberCount: video.owner?.subscriberCount || 0,
+        isSubscribed: Boolean(isSubscribed),
+        isOwner: ownerId?.toString() === userId?.toString()
+    };
+}
 
 
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -125,12 +145,14 @@ const getVideoById = asyncHandler(async (req, res) => {
         {$inc:{views:1}},
         {new:true}
     )
-    .populate("owner","username fullName avatar")
+    .populate("owner","username fullName avatar subscriberCount")
     .select("-__v");
 
     if(!video){
         throw new ApiError(404,"Video not found");
     }
+
+    const stats = await getVideoInteractionStats(video, req.user?._id);
 
     await User.findByIdAndUpdate(req.user._id,{
         $addToSet: {watchHistory:videoId}
@@ -138,7 +160,32 @@ const getVideoById = asyncHandler(async (req, res) => {
 
     return res
     .status(200)
-    .json(new ApiResponse(200,video,"Video details fetch successfull"));
+    .json(new ApiResponse(200,{
+        ...video.toObject(),
+        ...stats,
+    },"Video details fetch successfull"));
+});
+
+const getVideoStats = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    if(!mongoose.Types.ObjectId.isValid(videoId)){
+        throw new ApiError(400,"Invalid video id");
+    }
+
+    const video = await Video.findOne({_id:videoId,isPublished:true})
+    .populate("owner","subscriberCount")
+    .select("views owner");
+
+    if(!video){
+        throw new ApiError(404,"Video not found");
+    }
+
+    const stats = await getVideoInteractionStats(video, req.user?._id);
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,stats,"Video stats fetched successfully"));
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
@@ -287,6 +334,7 @@ export {
     getAllVideos,
     publishAVideo,
     getVideoById,
+    getVideoStats,
     updateVideo,
     deleteVideo,
     togglePublishStatus
