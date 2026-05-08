@@ -154,8 +154,25 @@ const getVideoById = asyncHandler(async (req, res) => {
 
     const stats = await getVideoInteractionStats(video, req.user?._id);
 
+    await User.collection.updateOne({_id:req.user._id},{
+        $pull: {
+            watchHistory: video._id
+        }
+    })
+
     await User.findByIdAndUpdate(req.user._id,{
-        $addToSet: {watchHistory:videoId}
+        $pull: {
+            watchHistory: { video: video._id }
+        }
+    })
+
+    await User.findByIdAndUpdate(req.user._id,{
+        $push: {
+            watchHistory: {
+                video: video._id,
+                watchedAt: new Date()
+            }
+        }
     })
 
     return res
@@ -269,9 +286,14 @@ const deleteVideo = asyncHandler(async (req, res) => {
     await Promise.all([
         video.deleteOne(),
 
-        User.updateMany(
+        User.collection.updateMany(
         {watchHistory: videoId},
         {$pull:{watchHistory:videoId}}
+        ),
+
+        User.updateMany(
+        {"watchHistory.video": videoId},
+        {$pull:{watchHistory:{video:videoId}}}
         ),
 
         Playlist.updateMany(

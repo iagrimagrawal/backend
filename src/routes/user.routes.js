@@ -1,5 +1,5 @@
 import {Router} from 'express';
-import { registerUser,loginUser, logoutUser,refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateAccountAvatar, updateAccountCoverImage, getUserChannelProfile, getWatchHistory, deleteUserAccount} from '../controllers/user.controller.js';
+import { registerUser,loginUser, logoutUser,refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateAccountAvatar, updateAccountCoverImage, getUserChannelProfile, getWatchHistory, removeVideoFromWatchHistory, clearWatchHistory, deleteUserAccount} from '../controllers/user.controller.js';
 import { upload } from '../middlewares/multer.middleware.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import multer from 'multer';
@@ -26,7 +26,8 @@ router.route("/update-account").patch(verifyJWT,updateAccountDetails);
 router.route("/update-avatar").patch(verifyJWT,upload.single("avatar"),updateAccountAvatar);
 router.route("/update-cover-image").patch(verifyJWT,upload.single("coverImage"),updateAccountCoverImage);
 router.route("/user-profile/:username").get(verifyJWT,getUserChannelProfile);
-router.route("/history").get(verifyJWT,getWatchHistory);
+router.route("/history").get(verifyJWT,getWatchHistory).delete(verifyJWT,clearWatchHistory);
+router.route("/history/:videoId").delete(verifyJWT,removeVideoFromWatchHistory);
 router.route("/delete-account").delete(verifyJWT,deleteUserAccount);
 
 export default router;   
