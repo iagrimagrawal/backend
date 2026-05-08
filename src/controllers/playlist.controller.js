@@ -150,8 +150,11 @@ const getPlaylistVideosById = asyncHandler(async (req, res) => {
                     thumbnail: "$video.thumbnail",
                     duration: "$video.duration",
                     views: "$video.views",
+                    createdAt: "$video.createdAt",
+                    uploadedAt: "$video.uploadedAt",
                     owner: {
                         username: "$video.owner.username",
+                        fullName: "$video.owner.fullName",
                         avatar: "$video.owner.avatar"
                     }
                 }
@@ -226,7 +229,7 @@ const addVideoToPlaylist = asyncHandler(async (req, res) => {
 
     const addVideo = await Playlist.findByIdAndUpdate(
         {_id:playlistId,owner:req.user._id},
-        {$push:{videos:videoId}},
+        {$addToSet:{videos:videoId}},
         {new:true}
     ).select("-__v");
 
