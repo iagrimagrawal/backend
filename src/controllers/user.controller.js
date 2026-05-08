@@ -435,11 +435,32 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
                 _id : new mongoose.Types.ObjectId(req.user._id)
             }
         },{
+            $addFields:{
+                normalizedWatchHistory:{
+                    $map:{
+                        input:{$ifNull:["$watchHistory",[]]},
+                        as:"historyItem",
+                        in:{
+                            video:{
+                                $ifNull:["$$historyItem.video","$$historyItem"]
+                            },
+                            watchedAt:{
+                                $ifNull:["$$historyItem.watchedAt","$createdAt"]
+                            }
+                        }
+                    }
+                }
+            }
+        },{
+            $addFields:{
+                historyVideoIds:"$normalizedWatchHistory.video"
+            }
+        },{
             $lookup:{
                 from:"videos",
-                localField:"watchHistory",
+                localField:"historyVideoIds",
                 foreignField:"_id",
-                as:"watchHistory",
+                as:"historyVideos",
                 pipeline:[
                     {
                         $lookup:{
@@ -467,10 +488,44 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
                         $project:{
                             title:1,
                             thumbnail:1,
+                            duration:1,
+                            views:1,
+                            createdAt:1,
+                            updatedAt:1,
                             owner:1,
                         }
                     }
                 ]
+            }
+        },{
+            $addFields:{
+                watchHistory:{
+                    $map:{
+                        input:{
+                            $sortArray:{
+                                input:"$normalizedWatchHistory",
+                                sortBy:{watchedAt:-1}
+                            }
+                        },
+                        as:"historyItem",
+                        in:{
+                            $mergeObjects:[
+                                {
+                                    $first:{
+                                        $filter:{
+                                            input:"$historyVideos",
+                                            as:"historyVideo",
+                                            cond:{$eq:["$$historyVideo._id","$$historyItem.video"]}
+                                        }
+                                    }
+                                },
+                                {
+                                    watchedAt:"$$historyItem.watchedAt"
+                                }
+                            ]
+                        }
+                    }
+                }
             }
         },{
             $project:{
@@ -487,6 +542,43 @@ const getWatchHistory = asyncHandler(async(req,res)=>{
     .json(
         new ApiResponse(200,user[0],"User watch history fetched successfully")
     )
+});
+
+const removeVideoFromWatchHistory = asyncHandler(async(req,res)=>{
+    const { videoId } = req.params;
+
+    if(!mongoose.Types.ObjectId.isValid(videoId)){
+        throw new ApiError(400,"Invalid video id");
+    }
+
+    const videoObjectId = new mongoose.Types.ObjectId(videoId);
+
+    await Promise.all([
+        User.updateOne(
+            {_id:req.user._id},
+            {$pull:{watchHistory:{$in:[videoObjectId,videoId]}}}
+        ),
+        User.updateOne(
+            {_id:req.user._id},
+            {$pull:{watchHistory:{video:{$in:[videoObjectId,videoId]}}}}
+        )
+    ]);
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,null,"Video removed from watch history"));
+});
+
+const clearWatchHistory = asyncHandler(async(req,res)=>{
+    await User.findByIdAndUpdate(req.user._id,{
+        $set:{
+            watchHistory:[]
+        }
+    });
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200,null,"Watch history cleared successfully"));
 });
 
 const deleteUserAccount = asyncHandler(async(req,res)=>{
@@ -564,9 +656,14 @@ const deleteUserAccount = asyncHandler(async(req,res)=>{
             {$pull:{videos:{$in:videoIds}}}
         ),
 
-        User.updateMany(
+        User.collection.updateMany(
             {watchHistory:{$in:videoIds}},
             {$pull:{watchHistory:{$in:videoIds}}}
+        ),
+
+        User.updateMany(
+            {"watchHistory.video":{$in:videoIds}},
+            {$pull:{watchHistory:{video:{$in:videoIds}}}}
         ),
 
         User.updateMany(
@@ -625,5 +722,7 @@ export {
     updateAccountCoverImage,
     getUserChannelProfile,
     getWatchHistory,
+    removeVideoFromWatchHistory,
+    clearWatchHistory,
     deleteUserAccount
 }
