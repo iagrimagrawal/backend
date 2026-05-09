@@ -145,6 +145,43 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
 const getLikedVideos = asyncHandler(async (req, res) => {
     //TODO: get all liked videos
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    const [likedVideos, total] = await Promise.all([
+        VideoLike.find({ likedBy: req.user._id })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate({
+                path: "video",
+                match: { isPublished: true },
+                select: "title description thumbnail duration views owner createdAt updatedAt",
+                populate: {
+                    path: "owner",
+                    select: "username fullName avatar"
+                }
+            })
+            .select("video createdAt"),
+        VideoLike.countDocuments({ likedBy: req.user._id })
+    ]);
+
+    const videos = likedVideos
+        .filter((likedVideo) => likedVideo.video)
+        .map((likedVideo) => ({
+            ...likedVideo.video.toObject(),
+            likedAt: likedVideo.createdAt
+        }));
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, {
+        videos,
+        total,
+        page,
+        limit
+    }, "Liked videos fetched successfully"));
 })
 
 export {

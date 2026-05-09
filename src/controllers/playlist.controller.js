@@ -5,6 +5,9 @@ import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
 import { Video } from "../models/video.model.js"
 
+const MAX_PLAYLIST_NAME_LENGTH = 150;
+const MAX_PLAYLIST_DESCRIPTION_LENGTH = 5000;
+
 const getUserPlaylists = asyncHandler(async (req, res) => {
     const {userId} = req.params
     //TODO: get user playlists
@@ -179,16 +182,16 @@ const createPlaylist = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Name is required");
     }
 
-    if(name.trim().length > 100){
-        throw new ApiError(400,"Name should not exceed 100 characters");
+    if(name.trim().length > MAX_PLAYLIST_NAME_LENGTH){
+        throw new ApiError(400,`Name should not exceed ${MAX_PLAYLIST_NAME_LENGTH} characters`);
     }
 
     if(!description || !description.trim()){
         throw new ApiError(400,"Description is required");
     }
 
-    if(description.trim().length > 500){
-        throw new ApiError(400,"Description Should not exceed 500 characters");
+    if(description.trim().length > MAX_PLAYLIST_DESCRIPTION_LENGTH){
+        throw new ApiError(400,`Description Should not exceed ${MAX_PLAYLIST_DESCRIPTION_LENGTH} characters`);
     }
 
     const existingPlaylist = await Playlist.findOne({
@@ -298,16 +301,16 @@ const updatePlaylist = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Name is required");
     }
 
-    if(name.trim().length > 100){
-        throw new ApiError(400,"Name should not exceed 100 characters");
+    if(name.trim().length > MAX_PLAYLIST_NAME_LENGTH){
+        throw new ApiError(400,`Name should not exceed ${MAX_PLAYLIST_NAME_LENGTH} characters`);
     }   
 
     if(!description || !description.trim()){
         throw new ApiError(400,"Description is required");
     }
 
-    if(description.trim().length > 500){
-        throw new ApiError(400,"Description Should not exceed 500 characters");
+    if(description.trim().length > MAX_PLAYLIST_DESCRIPTION_LENGTH){
+        throw new ApiError(400,`Description Should not exceed ${MAX_PLAYLIST_DESCRIPTION_LENGTH} characters`);
     }   
 
     if(!mongoose.Types.ObjectId.isValid(playlistId)){
