@@ -8,7 +8,7 @@ import { TweetLike } from "../models/TweetLike.model.js"
 
 const getAllTweets = asyncHandler(async (req, res) => {
     const tweets = await Tweet.find({})
-        .populate("owner", "username fullName avatar")
+        .populate("owner", "username fullName avatar coverImage")
         .sort({ createdAt: -1 })
         .select("-__v");
 
@@ -41,7 +41,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
     }
 
     const tweets = await Tweet.find({owner:userId})
-        .populate("owner", "username fullName avatar")
+        .populate("owner", "username fullName avatar coverImage")
         .sort({ createdAt: -1 })
         .select("-__v");
 

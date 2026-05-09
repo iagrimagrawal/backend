@@ -235,7 +235,7 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
     
         const options = {
             httpOnly:true,
-            secure:true
+            secure:false
         }
     
         const { accessToken,refreshToken } = await generateAccessAndRefreshToken(user._id);
@@ -330,7 +330,7 @@ const updateAccountAvatar = asyncHandler(async(req,res)=>{
         },{
             new :true
         }
-    )
+    ).select("-password -refreshToken")
 
     return res.status(200)
     .json(new ApiResponse(200,user,"Avatar update Succesfully"))

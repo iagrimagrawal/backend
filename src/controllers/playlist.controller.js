@@ -23,7 +23,7 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
     .sort({createdAt:-1})
     .skip(skip)
     .limit(limit)
-    .populate("owner","fullName username avatar");
+    .populate("owner","fullName username avatar coverImage");
 
     return res
     .status(200)
@@ -58,6 +58,7 @@ const getPlaylistById = asyncHandler(async (req, res) => {
                             fullName:1,
                             username:1,
                             avatar:1,
+                            coverImage:1,
                         }
                     }
                 ]
@@ -158,7 +159,8 @@ const getPlaylistVideosById = asyncHandler(async (req, res) => {
                     owner: {
                         username: "$video.owner.username",
                         fullName: "$video.owner.fullName",
-                        avatar: "$video.owner.avatar"
+                        avatar: "$video.owner.avatar",
+                        coverImage: "$video.owner.coverImage"
                     }
                 }
             }

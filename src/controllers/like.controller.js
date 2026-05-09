@@ -77,9 +77,11 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
             likedBy:req.user._id
         })
 
+        const likeCount = await CommentLike.countDocuments({ comment: commentId });
+
         return res
         .status(200)
-        .json(new ApiResponse(200,{isLiked:true},"Comment liked"));
+        .json(new ApiResponse(200,{isLiked:true, likeCount},"Comment liked"));
     }catch(error){
         // dislike
         if(error.code === 11000){
@@ -88,9 +90,11 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
                 likedBy:req.user._id
             });
 
+            const likeCount = await CommentLike.countDocuments({ comment: commentId });
+
             return res
             .status(200)
-            .json(new ApiResponse(200,{isLiked:false},"Comment unlike"));
+            .json(new ApiResponse(200,{isLiked:false, likeCount},"Comment unlike"));
         }
 
         throw error;
