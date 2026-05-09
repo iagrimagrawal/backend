@@ -64,7 +64,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
         .sort({ [sortField]: sortDirection })
         .skip((pageNumber - 1) * pageSize)
         .limit(pageSize)
-        .populate("owner", "username fullName avatar")
+        .populate("owner", "username fullName avatar coverImage")
         .select("-__v");
 
     return res
@@ -151,7 +151,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         {$inc:{views:1}},
         {new:true}
     )
-    .populate("owner","username fullName avatar subscriberCount")
+    .populate("owner","username fullName avatar coverImage subscriberCount")
     .select("-__v");
 
     if(!video){
@@ -341,23 +341,15 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid video Id");
     }
 
-    const toggleStatusUpdate = await Video.findOneAndUpdate(
-        {_id:videoId,owner:req.user._id},
-        [
-            {
-                $set:{
-                    isPublished:{
-                        $not:["$isPublished"]
-                    }
-                }
-            }
-        ],
-        {new:true}
-    )
+    const video = await Video.findOne({_id:videoId,owner:req.user._id});
 
-    if(!toggleStatusUpdate){
+    if(!video){
         throw new ApiError(404,"Video not found or unauthorized");
     }
+
+    video.isPublished = !video.isPublished;
+    const toggleStatusUpdate = await video.save();
+
     return res
     .status(200)
     .json(new ApiResponse(200,toggleStatusUpdate, "Video publish status toggled successfully"));
