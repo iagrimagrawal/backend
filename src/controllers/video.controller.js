@@ -140,8 +140,14 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid video id");
     }
 
-    const video = await Video.findByIdAndUpdate(
-        {_id:videoId,isPublished:true},
+    const video = await Video.findOneAndUpdate(
+        {
+            _id:videoId,
+            $or: [
+                { isPublished: true },
+                { owner: req.user._id }
+            ]
+        },
         {$inc:{views:1}},
         {new:true}
     )
@@ -190,7 +196,13 @@ const getVideoStats = asyncHandler(async (req, res) => {
         throw new ApiError(400,"Invalid video id");
     }
 
-    const video = await Video.findOne({_id:videoId,isPublished:true})
+    const video = await Video.findOne({
+        _id:videoId,
+        $or: [
+            { isPublished: true },
+            { owner: req.user._id }
+        ]
+    })
     .populate("owner","subscriberCount")
     .select("views owner");
 
@@ -335,12 +347,12 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
             {
                 $set:{
                     isPublished:{
-                        $not:"$isPublished"
+                        $not:["$isPublished"]
                     }
                 }
             }
         ],
-        {updatePipeline:true}
+        {new:true}
     )
 
     if(!toggleStatusUpdate){
