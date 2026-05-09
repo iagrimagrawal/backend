@@ -330,7 +330,7 @@ const updateAccountAvatar = asyncHandler(async(req,res)=>{
         },{
             new :true
         }
-    )
+    ).select("-password -refreshToken")
 
     return res.status(200)
     .json(new ApiResponse(200,user,"Avatar update Succesfully"))
